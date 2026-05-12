@@ -79,11 +79,11 @@ resource "aws_eks_node_group" "node-grp" {
 locals {
   eks_addons = {
     "vpc-cni" = {
-      version           = var.vpc_cni_version
+      version           = var.vpc-cni-version
       resolve_conflicts = "OVERWRITE"
     },
     "kube-proxy" = {
-      version           = var.kube_proxy_version
+      version           = var.kube-proxy-version
       resolve_conflicts = "OVERWRITE"
     }
   }
