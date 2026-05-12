@@ -29,18 +29,13 @@ resource "aws_launch_template" "worker-node-launch-template" {
     }
   }
 
-  image_id      = var.image_id
+  
   instance_type = var.instance_size
 
   user_data = base64encode(<<-EOF
-MIME-Version: 1.0
-Content-Type: multipart/mixed; boundary="==MYBOUNDARY=="
---==MYBOUNDARY==
-Content-Type: text/x-shellscript; charset="us-ascii"
 #!/bin/bash
-/etc/eks/bootstrap.sh autoelite-cluster
---==MYBOUNDARY==--\
-  EOF
+/etc/eks/bootstrap.sh ${var.cluster_name}
+EOF
 )
 
   vpc_security_group_ids = [var.eks_security_group_id]
@@ -84,11 +79,11 @@ resource "aws_eks_node_group" "node-grp" {
 locals {
   eks_addons = {
     "vpc-cni" = {
-      version           = var.vpc-cni-version
+      version           = var.vpc_cni_version
       resolve_conflicts = "OVERWRITE"
     },
     "kube-proxy" = {
-      version           = var.kube-proxy-version
+      version           = var.kube_proxy_version
       resolve_conflicts = "OVERWRITE"
     }
   }
