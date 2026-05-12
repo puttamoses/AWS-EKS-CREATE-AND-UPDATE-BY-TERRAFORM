@@ -1,6 +1,6 @@
 # Creating IAM role for Master Node
 resource "aws_iam_role" "master" {
-  name = "EKS-Master"
+  name = "autoelite-EKS-Master"
 
   assume_role_policy = jsonencode({
     "Version" : "2012-10-17",
@@ -26,6 +26,7 @@ resource "aws_iam_role_policy_attachment" "AmazonEKSClusterPolicyAdmin" {
   policy_arn = "arn:aws:iam::aws:policy/AdministratorAccess"
   role       = aws_iam_role.master.name
 }
+
 # Attaching Policy to IAM role
 resource "aws_iam_role_policy_attachment" "AmazonEKSServicePolicy" {
   policy_arn = "arn:aws:iam::aws:policy/AmazonEKSServicePolicy"
@@ -40,7 +41,7 @@ resource "aws_iam_role_policy_attachment" "AmazonEKSVPCResourceController" {
 
 # Creating IAM role for Worker Node
 resource "aws_iam_role" "worker" {
-  name = "ed-eks-worker"
+  name = "autoelite-eks-worker"
 
   assume_role_policy = jsonencode({
     "Version" : "2012-10-17",
@@ -58,7 +59,7 @@ resource "aws_iam_role" "worker" {
 
 # Creating IAM Policy for auto-scaler
 resource "aws_iam_policy" "autoscaler" {
-  name = "ed-eks-autoscaler-policy"
+  name = "autoelite-eks-autoscaler-policy"
   policy = jsonencode({
     "Version" : "2012-10-17",
     "Statement" : [
@@ -89,6 +90,7 @@ resource "aws_iam_role_policy_attachment" "AmazonEKSWorkerNodeAdminP" {
   policy_arn = "arn:aws:iam::aws:policy/AdministratorAccess"
   role       = aws_iam_role.worker.name
 }
+
 # Attaching Policy to IAM role
 resource "aws_iam_role_policy_attachment" "AmazonEKS_CNI_Policy" {
   policy_arn = "arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy"
@@ -127,6 +129,6 @@ resource "aws_iam_role_policy_attachment" "autoscaler" {
 
 resource "aws_iam_instance_profile" "worker" {
   depends_on = [aws_iam_role.worker]
-  name       = "EKS-worker-nodes-profile"
+  name       = "autoelite-EKS-worker-nodes-profile"
   role       = aws_iam_role.worker.name
 }

@@ -1,16 +1,30 @@
+# ─────────────────────────────────────────────────────────────
+#  car-project-microservices — Kubernetes Manifests
+#  Namespace : autoelite
+#  Services  : car-backend  |  car-frontend
+# ─────────────────────────────────────────────────────────────
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: autoelite
+
+---
+# ──────────────── car-backend Deployment ────────────────────
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: website-deployment
+  name: car-backend
+  namespace: autoelite
 spec:
-  replicas: 5
+  replicas: 2
   selector:
     matchLabels:
-      app: website
+      app: car-backend
   template:
     metadata:
       labels:
-        app: website
+        app: car-backend
     spec:
       affinity:
         podAntiAffinity:
@@ -19,22 +33,78 @@ spec:
             podAffinityTerm:
               labelSelector:
                 matchLabels:
-                  app: website
+                  app: car-backend
               topologyKey: kubernetes.io/hostname
       containers:
-      - name: website
-        image: veeranarni/website:latest
+      - name: car-backend
+        # Image updated by Jenkins CD pipeline via ArgoCD GitOps
+        image: <AWS_ACCOUNT_ID>.dkr.ecr.ap-south-1.amazonaws.com/car-backend:latest
         ports:
-        - containerPort: 80
+        - containerPort: 5000
+        env:
+        - name: NODE_ENV
+          value: "production"
 
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  name: website-service
+  name: car-backend
+  namespace: autoelite
 spec:
   selector:
-    app: website
+    app: car-backend
+  ports:
+  - protocol: TCP
+    port: 5000
+    targetPort: 5000
+  type: LoadBalancer
+
+---
+# ──────────────── car-frontend Deployment ───────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: car-frontend
+  namespace: autoelite
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: car-frontend
+  template:
+    metadata:
+      labels:
+        app: car-frontend
+    spec:
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchLabels:
+                  app: car-frontend
+              topologyKey: kubernetes.io/hostname
+      containers:
+      - name: car-frontend
+        # Image updated by Jenkins CD pipeline via ArgoCD GitOps
+        image: <AWS_ACCOUNT_ID>.dkr.ecr.ap-south-1.amazonaws.com/car-frontend:latest
+        ports:
+        - containerPort: 80
+        env:
+        - name: REACT_APP_API_URL
+          value: "http://car-backend:5000"
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: car-frontend
+  namespace: autoelite
+spec:
+  selector:
+    app: car-frontend
   ports:
   - protocol: TCP
     port: 80

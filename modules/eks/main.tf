@@ -14,12 +14,13 @@ resource "aws_eks_cluster" "eks" {
   }
 }
 
-# Using Data Source to get all Avalablility Zones in Region
+# Using Data Source to get all Availability Zones in Region
 data "aws_availability_zones" "available_zones" {}
 
 # Creating Launch Template for Worker Nodes
 resource "aws_launch_template" "worker-node-launch-template" {
-  name = "worker-node-launch-template"
+  name = "autoelite-worker-node-launch-template"
+
   block_device_mappings {
     device_name = "/dev/sdf"
 
@@ -30,17 +31,17 @@ resource "aws_launch_template" "worker-node-launch-template" {
 
   image_id      = var.image_id
   instance_type = var.instance_size
+
   user_data = base64encode(<<-EOF
 MIME-Version: 1.0
 Content-Type: multipart/mixed; boundary="==MYBOUNDARY=="
 --==MYBOUNDARY==
 Content-Type: text/x-shellscript; charset="us-ascii"
 #!/bin/bash
-/etc/eks/bootstrap.sh prod-cluster
+/etc/eks/bootstrap.sh autoelite-cluster
 --==MYBOUNDARY==--\
   EOF
 )
-
 
   vpc_security_group_ids = [var.eks_security_group_id]
 
@@ -48,7 +49,7 @@ Content-Type: text/x-shellscript; charset="us-ascii"
     resource_type = "instance"
 
     tags = {
-      Name = "Worker-Nodes"
+      Name = "autoelite-Worker-Nodes"
     }
   }
 }
@@ -56,7 +57,7 @@ Content-Type: text/x-shellscript; charset="us-ascii"
 # Creating Worker Node Group
 resource "aws_eks_node_group" "node-grp" {
   cluster_name    = aws_eks_cluster.eks.name
-  node_group_name = "Worker-Node-Group"
+  node_group_name = "autoelite-Worker-Node-Group"
   node_role_arn   = var.worker_arn
   subnet_ids      = [var.public_subnet_az1_id, var.public_subnet_az2_id]
 
@@ -76,8 +77,8 @@ resource "aws_eks_node_group" "node-grp" {
   }
 
   update_config {
-  max_unavailable_percentage = 50
-}
+    max_unavailable_percentage = 50
+  }
 }
 
 locals {
@@ -103,3 +104,7 @@ resource "aws_eks_addon" "example" {
   resolve_conflicts_on_update = each.value.resolve_conflicts
 }
 
+# EKS Cluster ID
+output "aws_eks_cluster_name" {
+  value = aws_eks_cluster.eks.id
+}

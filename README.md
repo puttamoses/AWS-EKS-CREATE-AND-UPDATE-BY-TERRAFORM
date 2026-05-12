@@ -1,114 +1,111 @@
-# EKS Cluster Upgrade Guide
+# 🚗 AutoElite — EKS Cluster (Terraform)
 
-## Step 1: Check Existing Version
+Terraform infrastructure for the **car-project-microservices** EKS cluster on AWS `ap-south-1`.
 
-```bash
-aws eks describe-cluster \
---name project-eks \
---region us-east-1 \
---query "cluster.version"
+---
+
+## 📁 Project Structure
+
+```
+.
+├── main.tf                      # Root module — wires VPC, SG, IAM, EKS
+├── provider.tf                  # AWS provider (ap-south-1)
+├── variables.tf                 # Input variable declarations
+├── terraform.tfvars             # Cluster config (name, region, AMI, K8s version)
+├── application-deployment.yaml  # K8s manifests — car-backend & car-frontend
+├── dev.sh                       # Helper: fetch EKS addon versions
+├── dev.json                     # Addon version reference output
+└── modules/
+    ├── vpc/                     # VPC, subnets, IGW, route tables
+    ├── security-group/          # Worker node security group
+    ├── iam/                     # Master & worker IAM roles + autoscaler policy
+    └── eks/                     # EKS cluster, launch template, node group, addons
 ```
 
-Before going to upgrade we have to enable cordon to nodes to not deploy any pods on old node while doing version upgrade
+---
+
+## ⚙️ Configuration (terraform.tfvars)
+
+| Variable          | Value                      |
+|-------------------|----------------------------|
+| `cluster_name`    | `autoelite-cluster`        |
+| `region`          | `ap-south-1`               |
+| `instance_size`   | `t3.medium`                |
+| `instance_count`  | `2`                        |
+| `cluster_version` | `1.32`                     |
+
+---
+
+## 🚀 Deploy Order
 
 ```bash
-kubectl cordon <old node>
-kubectl cordon ip-10-0-3-8.ec2.internal
-kubectl cordon ip-10-0-4-252.ec2.internal
+# 1. Initialise & apply Terraform
+terraform init
+terraform plan
+terraform apply
+
+# 2. Connect kubectl to the new cluster
+aws eks update-kubeconfig --name autoelite-cluster --region ap-south-1
+
+# 3. Create ECR repositories
+aws ecr create-repository --repository-name car-backend  --region ap-south-1
+aws ecr create-repository --repository-name car-frontend --region ap-south-1
+
+# 4. Apply K8s manifests (replace <AWS_ACCOUNT_ID> first)
+kubectl apply -f application-deployment.yaml
+
+# 5. Get LoadBalancer endpoints
+kubectl get svc -n autoelite
 ```
 
-## Step 2: Upgrade EKS Control Plane
+---
 
-Run:
+## 🔄 GitOps CD Flow
+
+```
+Jenkins CI  →  build image  →  push to ECR
+Jenkins CD  →  update k8s/backend-deployment.yaml in car-project-microservices repo
+ArgoCD      →  detects git change  →  syncs to autoelite-cluster automatically
+```
+
+---
+
+## 🔁 Rollback
 
 ```bash
-aws eks update-cluster-version \
---region us-east-1 \
---name project-eks \
---kubernetes-version 1.32
+kubectl rollout undo deployment/car-backend  -n autoelite
+kubectl rollout undo deployment/car-frontend -n autoelite
+
+# Rollback to a specific revision
+kubectl rollout undo deployment/car-backend --to-revision=2 -n autoelite
+
+# Check rollout history
+kubectl rollout history deployment/car-backend -n autoelite
 ```
 
-## Step 3: Upgrade Node Groups
+---
 
-Once control plane upgrade completes, update worker nodes.
+## 🏷️ AWS Resource Naming
 
-Option A — Rolling upgrade (recommended)
+| Resource                   | Name                                    |
+|----------------------------|-----------------------------------------|
+| EKS Cluster                | `autoelite-cluster`                     |
+| VPC                        | `autoelite-cluster-vpc`                 |
+| Internet Gateway           | `autoelite-cluster-igw`                 |
+| Security Group             | `autoelite-cluster-EKS-security-group`  |
+| IAM Master Role            | `autoelite-EKS-Master`                  |
+| IAM Worker Role            | `autoelite-eks-worker`                  |
+| IAM Autoscaler Policy      | `autoelite-eks-autoscaler-policy`       |
+| Worker Instance Profile    | `autoelite-EKS-worker-nodes-profile`    |
+| Launch Template            | `autoelite-worker-node-launch-template` |
+| Node Group                 | `autoelite-Worker-Node-Group`           |
+| K8s Namespace              | `autoelite`                             |
+| ECR Repo (backend)         | `car-backend`                           |
+| ECR Repo (frontend)        | `car-frontend`                          |
 
-```bash
-aws eks update-nodegroup-version \
-  --cluster-name project-eks \
-  --nodegroup-name eks-node-group \
-  --kubernetes-version 1.32 \
-  --region us-east-1
-```
+---
 
-## Upgrade EKS Add-ons
+## 🔗 Related Repos
 
-Upgrade important components:
-
-- CoreDNS
-- kube-proxy
-- VPC CNI
-
-## Step 4: Upgrade Addons
-
-Update each addon:
-
-Example VPC CNI
-
-```bash
-aws eks update-addon \
---cluster-name project-eks \
---addon-name vpc-cni
-```
-
-Example CoreDNS
-
-```bash
-aws eks update-addon \
---cluster-name project-eks \
---addon-name coredns
-```
-
-Example kube-proxy
-
-```bash
-aws eks update-addon \
---cluster-name project-eks \
---addon-name kube-proxy
-```
-
-Example EBS CSI
-
-```bash
-aws eks update-addon \
---cluster-name project-eks \
---addon-name aws-ebs-csi-driver
-```
-
-Old node  
-↓  
-Drain  
-↓  
-Replace with new node  
-↓  
-Reschedule pods
-
-
-
-
-## Resume Points – EKS Cluster Upgrade
-
-- Planned and executed AWS EKS cluster version upgrades while minimizing downtime for production workloads.
-- Managed node group upgrades using Terraform, ensuring worker nodes remained compatible with upgraded cluster versions.
-- Implemented default EKS addons (CoreDNS, kube-proxy, VPC CNI, EBS CSI driver, pod identity) with automated upgrade paths using Terraform.
-- Applied sequential addon deployment (depends_on) to reduce provisioning time and avoid AWS API throttling during upgrades.
-- Leveraged Terraform variables and version control to dynamically manage cluster, node group, and addon versions for repeatable deployments.
-- Ensured zero-impact upgrades by using rolling node updates, maintaining service availability during cluster version changes.
-- Automated cluster and addon upgrades using Terraform best practices, including force_update_version and version pinning when needed.
-- Monitored and validated post-upgrade cluster health, addon readiness, and application stability using AWS console and kubectl.
-
-
-## Interview Explanation
-
-"I have experience performing EKS cluster upgrades through multiple approaches. Manually, I've used the AWS console to upgrade the control plane and worker nodes while monitoring system components to ensure stability and zero downtime. Using the AWS CLI, I scripted cluster and node upgrades, validating addon and pod health to maintain operational reliability. With Terraform, I automated the entire upgrade process, managing cluster versions, node groups, and default addons like CoreDNS, kube-proxy, VPC CNI, and EBS CSI sequentially to avoid throttling. I also implemented best practices such as version pinning for critical addons, rolling updates for node groups, and health checks for system pods, ensuring upgrades are predictable and low-risk. By combining automation, monitoring, and sequential deployment, I was able to minimize downtime, maintain application availability, and deliver a fully auditable, repeatable process across multiple environments. This approach also improved team efficiency, reduced manual intervention, and allowed seamless scaling of the infrastructure."
+- **App + K8s manifests**: [car-project-microservices](https://github.com/puttamoses/car-project-microservices)
+- **This repo**: [AWS-EKS-CREATE-AND-UPDATE-BY-TERRAFORM](https://github.com/puttamoses/AWS-EKS-CREATE-AND-UPDATE-BY-TERRAFORM)
