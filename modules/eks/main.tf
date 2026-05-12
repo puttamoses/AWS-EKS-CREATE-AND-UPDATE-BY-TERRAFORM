@@ -104,7 +104,4 @@ resource "aws_eks_addon" "example" {
   resolve_conflicts_on_update = each.value.resolve_conflicts
 }
 
-# EKS Cluster ID
-output "aws_eks_cluster_name" {
-  value = aws_eks_cluster.eks.id
-}
+
